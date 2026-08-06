@@ -2,9 +2,8 @@ name: NTRIP Stream Monitor
 
 on:
   schedule:
-    # Runs automatically every 6 hours
-    - cron: '0 */6 * * *'
-  # Allows you to trigger the monitor manually from the Actions tab anytime
+    # Trigger every 10 minutes
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -12,14 +11,14 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write # Grants GitHub Actions permission to commit files back to your repo
+      contents: write
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/python-spec@v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -28,15 +27,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install matplotlib
 
-      - name: Run NTRIP Stream Monitor (30-Minute Sampling Session)
+      - name: Execute 60-Second NTRIP Sample
         run: |
-          # Runs the python logger for 30 minutes (1800 seconds) per job run
-          timeout 1800s python ntrip_headless_logger.py || true
+          python ntrip_headless_logger.py
 
-      - name: Commit and push updated logs & graph
+      - name: Commit and push log & updated plot
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
           git add ntrip_reliability_log.csv ntrip_session_summary.png
-          git commit -m "Auto-update NTRIP log and summary graph [skip ci]" || echo "No changes to commit"
+          git commit -m "Add 60s sample log and update plot [skip ci]" || echo "No changes to commit"
           git push
