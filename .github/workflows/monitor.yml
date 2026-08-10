@@ -36,5 +36,5 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
           git add ntrip_reliability_log.csv ntrip_session_summary.png
-          git commit -m "Add 60s sample log and update plot [skip ci]" || echo "No changes to commit"
+          git commit -m "Add 60s sample log and update plot [skip ci]" || exit 0
           git push
