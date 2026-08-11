@@ -21,7 +21,7 @@ LOG_FILE = "ntrip_reliability_log.csv"
 GRAPH_SUMMARY_OUTPUT = "ntrip_session_summary.png"   # Option 2: Long-term Timeline
 GRAPH_OVERLAY_OUTPUT = "ntrip_overlay_analysis.png"  # Option 1: 0-60s Trace Overlay
 DROPOUT_THRESHOLD_SEC = 2.5
-SAMPLE_DURATION_SEC = 30                   # Collect data for 60 seconds per run
+SAMPLE_DURATION_SEC = 540                   # Collect data for 60 seconds per run
 LOCAL_TZ = timezone(timedelta(hours=9, minutes=30))  # Local time UTC+9:30
 # ==========================================
 
