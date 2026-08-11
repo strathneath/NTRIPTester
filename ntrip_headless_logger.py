@@ -18,7 +18,8 @@ USER = "FyfeSA"
 PASSWORD = "0110"
 
 LOG_FILE = "ntrip_reliability_log.csv"
-GRAPH_OUTPUT = "ntrip_session_summary.png"
+GRAPH_SUMMARY_OUTPUT = "ntrip_session_summary.png"   # Option 2: Long-term Timeline
+GRAPH_OVERLAY_OUTPUT = "ntrip_overlay_analysis.png"  # Option 1: 0-60s Trace Overlay
 DROPOUT_THRESHOLD_SEC = 2.5
 SAMPLE_DURATION_SEC = 60                   # Collect data for 60 seconds per run
 LOCAL_TZ = timezone(timedelta(hours=9, minutes=30))  # Local time UTC+9:30
@@ -37,78 +38,114 @@ def log_packet(timestamp_utc, latency):
         writer = csv.writer(f)
         writer.writerow([timestamp_utc.isoformat(), latency])
 
-def generate_summary_graph():
-    """Read full historical CSV data and render the updated summary PNG."""
+def generate_graphs():
+    """Reads CSV data and renders both Option 1 (Overlay) and Option 2 (Timeline Summary)."""
     if not os.path.exists(LOG_FILE):
         print("No log file found yet. Skipping graph generation.")
         return
 
-    timestamps_utc = []
-    latencies = []
+    sessions = {} # Key: Sample session start time, Value: list of (elapsed_sec, latency)
 
     try:
         with open(LOG_FILE, mode='r') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 if row.get("timestamp_utc") and row.get("latency_sec"):
-                    timestamps_utc.append(datetime.fromisoformat(row["timestamp_utc"]))
-                    latencies.append(float(row["latency_sec"]))
+                    dt_utc = datetime.fromisoformat(row["timestamp_utc"])
+                    dt_local = dt_utc.astimezone(LOCAL_TZ)
+                    latency = float(row["latency_sec"])
+
+                    # Group data into 10-minute buckets based on session timestamp
+                    session_key = dt_local.replace(minute=(dt_local.minute // 10) * 10, second=0, microsecond=0)
+                    
+                    if session_key not in sessions:
+                        sessions[session_key] = []
+                    
+                    sessions[session_key].append((dt_local, latency))
     except Exception as e:
         print(f"Error reading log file: {e}")
         return
 
-    if not timestamps_utc:
+    if not sessions:
         print("Log file contains no data yet. Skipping graph generation.")
         return
 
-    fig_final, ax_final = plt.subplots(figsize=(12, 6))
-    ax_final.axhline(y=1.0, color='g', linestyle='--', alpha=0.5, label='Ideal Latency (1.0s)')
-    ax_final.axhline(y=DROPOUT_THRESHOLD_SEC, color='r', linestyle='--', alpha=0.5, label='Dropout Limit')
+    # ==========================================
+    # GRAPH 1: OPTION 2 - TIMELINE SUMMARY
+    # ==========================================
+    session_times = []
+    avg_latencies = []
+    max_latencies = []
+    has_dropout = []
 
-    plot_times_utc = [timestamps_utc[0]]
-    plot_latencies = [latencies[0]]
-    dropout_shading_triggered = False
-    total_gaps = 0
-
-    for i in range(1, len(timestamps_utc)):
-        gap = (timestamps_utc[i] - timestamps_utc[i-1]).total_seconds()
+    for s_time in sorted(sessions.keys()):
+        records = sessions[s_time]
+        lats = [r[1] for r in records]
         
-        if gap > DROPOUT_THRESHOLD_SEC:
-            t_start_local = timestamps_utc[i-1].astimezone(LOCAL_TZ)
-            t_end_local = timestamps_utc[i].astimezone(LOCAL_TZ)
-            
-            label = "Missing Data Gap" if not dropout_shading_triggered else ""
-            ax_final.axvspan(t_start_local, t_end_local, color='red', alpha=0.2, label=label)
-            dropout_shading_triggered = True
-            total_gaps += 1
-            
-            plot_times_utc.append(timestamps_utc[i-1] + timedelta(microseconds=1))
-            plot_latencies.append(None)
-            
-        plot_times_utc.append(timestamps_utc[i])
-        plot_latencies.append(latencies[i])
+        session_times.append(s_time)
+        avg_latencies.append(sum(lats) / len(lats))
+        max_lat = max(lats)
+        max_latencies.append(max_lat)
+        has_dropout.append(max_lat > DROPOUT_THRESHOLD_SEC)
 
-    plot_times_local = [
-        dt.astimezone(LOCAL_TZ) if isinstance(dt, datetime) else dt 
-        for dt in plot_times_utc
-    ]
+    fig_summary, ax_summary = plt.subplots(figsize=(12, 6))
+    ax_summary.axhline(y=1.0, color='g', linestyle='--', alpha=0.5, label='Ideal Latency (1.0s)')
+    ax_summary.axhline(y=DROPOUT_THRESHOLD_SEC, color='r', linestyle='--', alpha=0.5, label='Dropout Limit (2.5s)')
 
-    ax_final.plot(plot_times_local, plot_latencies, color='#2ca02c', linestyle='-', alpha=0.8, label='Stream Latency')
+    ax_summary.plot(session_times, avg_latencies, color='#1f77b4', marker='o', markersize=4, linestyle='-', linewidth=1, label='Sample Avg Latency')
 
-    avg_latency = sum(latencies) / len(latencies)
-    max_latency = max(latencies)
+    for st, avg_l, max_l, dropped in zip(session_times, avg_latencies, max_latencies, has_dropout):
+        if dropped:
+            ax_summary.vlines(x=st, ymin=avg_l, ymax=max_l, color='red', linewidth=2, alpha=0.8)
+            ax_summary.plot(st, max_l, marker='x', color='red', markersize=6)
+        else:
+            ax_summary.vlines(x=st, ymin=avg_l, ymax=max_l, color='#1f77b4', linewidth=1, alpha=0.4)
 
-    ax_final.set_title(f"NTRIP Reliability Log (Local Time UTC+9:30)\nAvg Interval: {avg_latency:.2f}s | Max Delay: {max_latency:.2f}s | Gaps: {total_gaps}")
-    ax_final.set_xlabel("Local Time")
-    ax_final.set_ylabel("Packet Interval (Seconds)")
-    ax_final.legend(loc='upper right')
-    ax_final.grid(True, linestyle=':', alpha=0.6)
+    total_samples = len(sessions)
+    bad_samples = sum(has_dropout)
+
+    ax_summary.set_title(f"NTRIP Stream 10-Min Timeline Summary (UTC+9:30)\nTotal Samples: {total_samples} | Runs with Dropouts: {bad_samples}")
+    ax_summary.set_xlabel("Local Time")
+    ax_summary.set_ylabel("Packet Interval (Seconds)")
+    ax_summary.legend(loc='upper right')
+    ax_summary.grid(True, linestyle=':', alpha=0.6)
     plt.xticks(rotation=45)
     plt.tight_layout()
 
-    plt.savefig(GRAPH_OUTPUT)
-    plt.close(fig_final)
-    print(f"Graph successfully rendered and saved to {GRAPH_OUTPUT}")
+    plt.savefig(GRAPH_SUMMARY_OUTPUT)
+    plt.close(fig_summary)
+    print(f"Timeline summary graph saved to {GRAPH_SUMMARY_OUTPUT}")
+
+    # ==========================================
+    # GRAPH 2: OPTION 1 - 0-60s OVERLAY ANALYSIS
+    # ==========================================
+    fig_overlay, ax_overlay = plt.subplots(figsize=(12, 6))
+    ax_overlay.axhline(y=1.0, color='g', linestyle='--', alpha=0.5, label='Ideal Latency (1.0s)')
+    ax_overlay.axhline(y=DROPOUT_THRESHOLD_SEC, color='r', linestyle='--', alpha=0.5, label='Dropout Limit (2.5s)')
+
+    # Plot each 60-second session overlaid on a relative 0-60 second x-axis
+    for s_time in sorted(sessions.keys()):
+        records = sessions[s_time]
+        if not records:
+            continue
+            
+        start_dt = records[0][0]
+        relative_seconds = [(r[0] - start_dt).total_seconds() for r in records]
+        latencies = [r[1] for r in records]
+
+        # Use subtle transparency so dense overlapping lines build up visually
+        ax_overlay.plot(relative_seconds, latencies, linestyle='-', linewidth=1, alpha=0.35)
+
+    ax_overlay.set_title(f"NTRIP 60-Second Overlay Analysis ({total_samples} Combined Runs)\nEvaluates Packet Consistency Over the 60s Sample Window")
+    ax_overlay.set_xlabel("Elapsed Time Within Sample Window (Seconds)")
+    ax_overlay.set_ylabel("Packet Interval (Seconds)")
+    ax_overlay.legend(loc='upper right')
+    ax_overlay.grid(True, linestyle=':', alpha=0.6)
+    plt.tight_layout()
+
+    plt.savefig(GRAPH_OVERLAY_OUTPUT)
+    plt.close(fig_overlay)
+    print(f"Overlay analysis graph saved to {GRAPH_OVERLAY_OUTPUT}")
 
 def run_sample_session():
     init_csv()
@@ -139,7 +176,7 @@ def run_sample_session():
         if "200 OK" not in response and "ICY" not in response:
             print(f"Connection Failed. Server responded with:\n{response}")
             s.close()
-            generate_summary_graph()
+            generate_graphs()
             return
 
         print("Connected! Sampling packet delivery...")
@@ -167,7 +204,7 @@ def run_sample_session():
     except Exception as e:
         print(f"Network error during sampling run: {e}")
 
-    generate_summary_graph()
+    generate_graphs()
 
 if __name__ == "__main__":
     run_sample_session()
