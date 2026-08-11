@@ -11,17 +11,17 @@ import matplotlib.pyplot as plt
 # ==========================================
 # CONFIGURATION
 # ==========================================
-NTRIP_CASTER = "www.smartnetaus.com"
-NTRIP_PORT = 15151
-MOUNTPOINT = "MSM_CRYB"
-USER = "FyfeSA"
-PASSWORD = "0110"
+NTRIP_CASTER = "caster.emlid.com"
+NTRIP_PORT = 2101
+MOUNTPOINT = "MP25727"
+USER = "u33679"
+PASSWORD = "376rfe"
 
 LOG_FILE = "ntrip_reliability_log.csv"
 GRAPH_SUMMARY_OUTPUT = "ntrip_session_summary.png"   # Option 2: Long-term Timeline
 GRAPH_OVERLAY_OUTPUT = "ntrip_overlay_analysis.png"  # Option 1: 0-60s Trace Overlay
 DROPOUT_THRESHOLD_SEC = 2.5
-SAMPLE_DURATION_SEC = 120                   # Collect data for 60 seconds per run
+SAMPLE_DURATION_SEC = 60                   # Collect data for 60 seconds per run
 LOCAL_TZ = timezone(timedelta(hours=9, minutes=30))  # Local time UTC+9:30
 # ==========================================
 
