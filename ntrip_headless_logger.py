@@ -21,7 +21,7 @@ PASSWORD = "376rfe"
 
 GRAPH_SUMMARY_OUTPUT = "ntrip_session_summary.png"
 GRAPH_OVERLAY_OUTPUT = "ntrip_overlay_analysis.png"
-DROPOUT_THRESHOLD_SEC = 2.5
+DROPOUT_THRESHOLD_SEC = 5.5
 SAMPLE_DURATION_SEC = 60
 LOCAL_TZ = timezone(timedelta(hours=9, minutes=30))
 
