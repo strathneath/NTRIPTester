@@ -2,7 +2,6 @@ name: NTRIP Stream Monitor
 
 on:
   schedule:
-    # Trigger every 10 minutes
     - cron: '*/10 * * * *'
   workflow_dispatch:
 
@@ -25,16 +24,20 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install matplotlib
+          pip install matplotlib gspread google-auth
 
       - name: Execute 60-Second NTRIP Sample
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
         run: |
           python ntrip_headless_logger.py
 
-      - name: Commit and push log & updated plot
+      - name: Commit and push updated plots
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
-          git add ntrip_reliability_log.csv ntrip_session_summary.png
-          git commit -m "Add 60s sample log and update plot [skip ci]" || exit 0
+          # Only committing the images now—no giant CSV files in git!
+          git add ntrip_session_summary.png ntrip_overlay_analysis.png
+          git commit -m "Update dashboard graphs [skip ci]" || exit 0
           git push
