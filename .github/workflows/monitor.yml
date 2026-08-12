@@ -2,7 +2,8 @@ name: NTRIP Stream Monitor
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    # Trigger automatically every 10 minutes continuously
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -37,7 +38,11 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action Bot"
-          # Only committing the images now—no giant CSV files in git!
-          git add ntrip_session_summary.png ntrip_overlay_analysis.png
-          git commit -m "Update dashboard graphs [skip ci]" || exit 0
-          git push
+          git add -A
+          # Check if any image files changed before committing to prevent exit code 128
+          if git diff-index --quiet HEAD --; then
+            echo "No visual changes detected in PNG plots. Skipping commit."
+          else
+            git commit -m "Update dashboard graphs [skip ci]"
+            git push
+          fi
