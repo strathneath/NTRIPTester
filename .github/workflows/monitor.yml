@@ -3,7 +3,7 @@ name: NTRIP Stream Monitor
 on:
   schedule:
     # Trigger automatically every 10 minutes continuously
-    - cron: '*/2 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
